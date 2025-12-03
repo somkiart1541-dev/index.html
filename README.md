@@ -1,478 +1,238 @@
-import React, { useState, useEffect } from 'react';
-import { Upload, Folder, File, Trash2, Search, Download, Grid, List, Plus, X, FolderPlus, Image, FileText, Music, Video, Archive, Zap, Cloud, Star, Clock, TrendingUp } from 'lucide-react';
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NEXUS DRIVE — Standalone</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind Play CDN for quick styling (not for production) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes blob { 0%,100%{transform:translate(0,0) scale(1);}33%{transform:translate(30px,-50px) scale(1.1);}66%{transform:translate(-20px,20px) scale(0.9);} }
+    .animate-blob{animation:blob 7s infinite}
+    .glass{background:rgba(255,255,255,0.04);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)}
+    .glow{box-shadow:0 6px 30px rgba(139,92,246,0.12)}
+  </style>
+</head>
+<body class="bg-black text-white min-h-screen">
+  <div id="root"></div>
 
-export default function FileStorageSystem() {
-  const [files, setFiles] = useState([]);
-  const [folders, setFolders] = useState([{ id: 'root', name: 'Home', parent: null }]);
-  const [currentFolder, setCurrentFolder] = useState('root');
-  const [viewMode, setViewMode] = useState('grid');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  <script type="text/babel">
+    const { useState, useEffect } = React;
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const filesResult = await window.storage.get('files');
-      const foldersResult = await window.storage.get('folders');
-      
-      if (filesResult) setFiles(JSON.parse(filesResult.value));
-      if (foldersResult) setFolders(JSON.parse(foldersResult.value));
-    } catch (error) {
-      console.log('Initializing storage');
+    function Icon({ name }){
+      // tiny icon helper (returns simple SVGs)
+      const common = { width: 20, height: 20 };
+      if(name === 'folder') return (<svg {...common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H12l-2-2H5a2 2 0 0 0-2 2z"/></svg>);
+      if(name === 'upload') return (<svg {...common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v14"/></svg>);
+      if(name === 'search') return (<svg {...common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="6"/><path d="M21 21l-4.35-4.35"/></svg>);
+      if(name === 'file') return (<svg {...common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>);
+      if(name === 'trash') return (<svg {...common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>);
+      return null;
     }
-  };
 
-  const saveData = async (newFiles, newFolders) => {
-    try {
-      await window.storage.set('files', JSON.stringify(newFiles));
-      await window.storage.set('folders', JSON.stringify(newFolders));
-    } catch (error) {
-      console.error('Error saving:', error);
-    }
-  };
+    function App(){
+      const [files, setFiles] = useState([]);
+      const [folders, setFolders] = useState([{ id: 'root', name: 'Home', parent: null }]);
+      const [currentFolder, setCurrentFolder] = useState('root');
+      const [viewMode, setViewMode] = useState('grid');
+      const [searchQuery, setSearchQuery] = useState('');
+      const [filterType, setFilterType] = useState('all');
+      const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+      const [newFolderName, setNewFolderName] = useState('');
+      const [sortBy, setSortBy] = useState('name');
+      const [isDragging, setIsDragging] = useState(false);
+      const [uploadProgress, setUploadProgress] = useState(0);
 
-  const getFileIcon = (type) => {
-    if (type.startsWith('image/')) return <Image className="w-6 h-6" />;
-    if (type.startsWith('video/')) return <Video className="w-6 h-6" />;
-    if (type.startsWith('audio/')) return <Music className="w-6 h-6" />;
-    if (type.includes('pdf') || type.includes('document')) return <FileText className="w-6 h-6" />;
-    if (type.includes('zip') || type.includes('rar')) return <Archive className="w-6 h-6" />;
-    return <File className="w-6 h-6" />;
-  };
+      useEffect(()=>{ loadData(); }, []);
 
-  const handleFileUpload = (uploadedFiles) => {
-    setUploadProgress(30);
-    setTimeout(() => setUploadProgress(60), 100);
-    
-    const newFiles = Array.from(uploadedFiles).map(file => ({
-      id: Date.now() + Math.random(),
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      folder: currentFolder,
-      uploadDate: new Date().toISOString(),
-      data: URL.createObjectURL(file)
-    }));
-
-    setTimeout(() => {
-      setUploadProgress(100);
-      const updatedFiles = [...files, ...newFiles];
-      setFiles(updatedFiles);
-      saveData(updatedFiles, folders);
-      setTimeout(() => setUploadProgress(0), 500);
-    }, 200);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files) {
-      handleFileUpload(e.dataTransfer.files);
-    }
-  };
-
-  const createFolder = () => {
-    if (!newFolderName.trim()) return;
-    
-    const newFolder = {
-      id: Date.now().toString(),
-      name: newFolderName,
-      parent: currentFolder
-    };
-
-    const updatedFolders = [...folders, newFolder];
-    setFolders(updatedFolders);
-    saveData(files, updatedFolders);
-    setNewFolderName('');
-    setShowNewFolderModal(false);
-  };
-
-  const deleteFile = (fileId) => {
-    const updatedFiles = files.filter(f => f.id !== fileId);
-    setFiles(updatedFiles);
-    saveData(updatedFiles, folders);
-  };
-
-  const deleteFolder = (folderId) => {
-    if (folderId === 'root') return;
-    
-    const updatedFolders = folders.filter(f => f.id !== folderId && f.parent !== folderId);
-    const updatedFiles = files.filter(f => f.folder !== folderId);
-    
-    setFolders(updatedFolders);
-    setFiles(updatedFiles);
-    saveData(updatedFiles, updatedFolders);
-    
-    if (currentFolder === folderId) {
-      const deletedFolder = folders.find(f => f.id === folderId);
-      setCurrentFolder(deletedFolder.parent || 'root');
-    }
-  };
-
-  const getCurrentFolderPath = () => {
-    const path = [];
-    let current = currentFolder;
-    
-    while (current) {
-      const folder = folders.find(f => f.id === current);
-      if (folder) {
-        path.unshift(folder);
-        current = folder.parent;
-      } else {
-        break;
+      function loadData(){
+        try{
+          const f = localStorage.getItem('nexus_files');
+          const d = localStorage.getItem('nexus_folders');
+          if(f) setFiles(JSON.parse(f));
+          if(d) setFolders(JSON.parse(d));
+        }catch(e){ console.warn('load error', e); }
       }
-    }
-    
-    return path;
-  };
 
-  const getFilteredAndSortedItems = () => {
-    const currentFolders = folders.filter(f => f.parent === currentFolder);
-    let currentFiles = files.filter(f => f.folder === currentFolder);
+      function saveData(nextFiles, nextFolders){
+        try{
+          localStorage.setItem('nexus_files', JSON.stringify(nextFiles));
+          localStorage.setItem('nexus_folders', JSON.stringify(nextFolders));
+        }catch(e){ console.warn('save error', e); }
+      }
 
-    if (searchQuery) {
-      currentFiles = currentFiles.filter(f => 
-        f.name.toLowerCase().includes(searchQuery.toLowerCase())
+      const handleFileUpload = (uploadedFiles) => {
+        if(!uploadedFiles || uploadedFiles.length===0) return;
+        setUploadProgress(20);
+        const arr = Array.from(uploadedFiles).map(file => ({
+          id: Date.now() + Math.random(),
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          size: file.size || 0,
+          folder: currentFolder,
+          uploadDate: new Date().toISOString(),
+          data: URL.createObjectURL(file)
+        }));
+        setTimeout(()=>{
+          const updated = [...files, ...arr];
+          setFiles(updated);
+          saveData(updated, folders);
+          setUploadProgress(100);
+          setTimeout(()=>setUploadProgress(0), 500);
+        }, 250);
+      };
+
+      const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer && e.dataTransfer.files) handleFileUpload(e.dataTransfer.files); };
+
+      const createFolder = () => {
+        if(!newFolderName.trim()) return;
+        const newF = { id: Date.now().toString(), name: newFolderName.trim(), parent: currentFolder };
+        const updated = [...folders, newF];
+        setFolders(updated);
+        saveData(files, updated);
+        setNewFolderName(''); setShowNewFolderModal(false);
+      };
+
+      const deleteFile = (id)=>{ const updated = files.filter(f=>f.id!==id); setFiles(updated); saveData(updated, folders); };
+
+      const deleteFolder = (id)=>{
+        if(id==='root') return;
+        const updatedFolders = folders.filter(f=>f.id!==id && f.parent!==id);
+        const updatedFiles = files.filter(f=>f.folder!==id);
+        setFolders(updatedFolders); setFiles(updatedFiles); saveData(updatedFiles, updatedFolders);
+        if(currentFolder===id){ const found = folders.find(f=>f.id===id); setCurrentFolder(found?.parent||'root'); }
+      };
+
+      const getCurrentFolderPath = ()=>{
+        const path=[]; let cur=currentFolder; while(cur){ const folder=folders.find(f=>f.id===cur); if(folder){ path.unshift(folder); cur=folder.parent; } else break; } return path;
+      };
+
+      const getFilteredAndSortedItems = ()=>{
+        const currentFolders = folders.filter(f=>f.parent===currentFolder);
+        let currentFiles = files.filter(f=>f.folder===currentFolder);
+        if(searchQuery) currentFiles = currentFiles.filter(f=>f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        if(filterType!=='all') currentFiles = currentFiles.filter(f=>f.type.startsWith(filterType+'/'));
+        currentFiles.sort((a,b)=>{ if(sortBy==='name') return a.name.localeCompare(b.name); if(sortBy==='date') return new Date(b.uploadDate)-new Date(a.uploadDate); if(sortBy==='size') return b.size-a.size; return 0; });
+        return { currentFolders, currentFiles };
+      };
+
+      const formatFileSize = (bytes)=>{ if(!bytes) return '0 B'; const k=1024; const sizes=['B','KB','MB','GB']; const i=Math.floor(Math.log(bytes)/Math.log(k)); return Math.round(bytes/Math.pow(k,i)*100)/100 + ' ' + sizes[i]; };
+
+      const { currentFolders, currentFiles } = getFilteredAndSortedItems();
+      const path = getCurrentFolderPath();
+      const totalFiles = files.length;
+      const totalSize = files.reduce((s,f)=>s+ (f.size||0),0);
+
+      return (
+        <div className="relative z-10 max-w-6xl mx-auto p-6">
+          <div className="glass rounded-2xl p-6 mb-6 glow">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="bg-gradient-to-r from-purple-500 to-cyan-500 p-3 rounded-2xl">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5"><path d="M12 2v6l4 4"/></svg>
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400">NEXUS DRIVE</h1>
+                    <p className="text-gray-300 text-sm">{totalFiles} files • {formatFileSize(totalSize)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={()=>setShowNewFolderModal(true)} className="flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-lg">📁 New Folder</button>
+                <label className="flex items-center gap-2 bg-cyan-600 px-4 py-2 rounded-lg cursor-pointer">
+                  ⬆️ Upload
+                  <input type="file" multiple onChange={(e)=>handleFileUpload(e.target.files)} className="hidden" />
+                </label>
+              </div>
+            </div>
+
+            {uploadProgress>0 && (<div className="mb-4"><div className="h-2 bg-gray-800 rounded-full overflow-hidden"><div style={{width: uploadProgress+'%'}} className="h-full bg-gradient-to-r from-cyan-400 to-purple-500"></div></div></div>)}
+
+            <div className="flex items-center gap-2 mb-4 text-gray-400">
+              {path.map((p, i)=> (<React.Fragment key={p.id}><button onClick={()=>setCurrentFolder(p.id)} className="hover:text-cyan-300">{p.name}</button>{i<path.length-1 && <span className="text-gray-600">/</span>}</React.Fragment>))}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <div className="flex-1 min-w-[200px] relative">
+                <span style={{position:'absolute',left:12,top:10}}><Icon name="search" /></span>
+                <input value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} placeholder="Search files..." className="w-full pl-10 pr-4 py-2 bg-white/5 rounded-lg" />
+              </div>
+
+              <select value={filterType} onChange={(e)=>setFilterType(e.target.value)} className="px-3 py-2 bg-white/5 rounded-lg">
+                <option value="all">All Types</option>
+                <option value="image">Images</option>
+                <option value="video">Videos</option>
+                <option value="audio">Audio</option>
+                <option value="application">Documents</option>
+              </select>
+
+              <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="px-3 py-2 bg-white/5 rounded-lg">
+                <option value="name">Name</option>
+                <option value="date">Date</option>
+                <option value="size">Size</option>
+              </select>
+
+              <div className="flex gap-2">
+                <button onClick={()=>setViewMode('grid')} className={`px-3 py-2 rounded-lg ${viewMode==='grid'?'bg-purple-600':''}`}>Grid</button>
+                <button onClick={()=>setViewMode('list')} className={`px-3 py-2 rounded-lg ${viewMode==='list'?'bg-purple-600':''}`}>List</button>
+              </div>
+            </div>
+          </div>
+
+          <div onDragOver={(e)=>{e.preventDefault(); setIsDragging(true);}} onDragLeave={()=>setIsDragging(false)} onDrop={handleDrop} className={`glass rounded-2xl p-6 transition ${isDragging? 'border-2 border-cyan-500 bg-cyan-600/10':''}`}>
+            {isDragging && (<div className="text-center py-8 mb-4 border-2 border-dashed border-cyan-500 rounded-lg"><div className="text-cyan-400 text-xl">Drop files here</div></div>)}
+
+            {currentFolders.length===0 && currentFiles.length===0 ? (
+              <div className="text-center py-16"><div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 mx-auto mb-4 flex items-center justify-center">📁</div><div className="text-lg font-bold">No files yet</div><div className="text-gray-400">Upload files or create a folder</div></div>
+            ) : (
+              <>
+                {currentFolders.length>0 && (<div className="mb-6"><h3 className="text-sm text-gray-400 mb-3">Folders</h3><div className={viewMode==='grid'? 'grid grid-cols-2 md:grid-cols-4 gap-4':'space-y-2'}>{currentFolders.map(folder=> (
+                  <div key={folder.id} className="glass p-4 rounded-lg hover:bg-white/5 cursor-pointer group" onDoubleClick={()=>setCurrentFolder(folder.id)}>
+                    <div className="text-center"><div className="w-16 h-16 rounded-lg bg-yellow-400/30 mx-auto mb-3 flex items-center justify-center">📁</div><div className="font-medium truncate">{folder.name}</div></div>
+                    {folder.id!=='root' && (<button onClick={(e)=>{e.stopPropagation(); deleteFolder(folder.id);}} className="mt-2 text-sm text-red-400">Delete</button>)}
+                  </div>
+                ))}</div></div>)}
+
+                {currentFiles.length>0 && (<div><h3 className="text-sm text-gray-400 mb-3">Files</h3><div className={viewMode==='grid'? 'grid grid-cols-2 md:grid-cols-4 gap-4':'space-y-2'}>{currentFiles.map(file=> (
+                  <div key={file.id} className="glass p-4 rounded-lg group relative">
+                    <div className="text-center">
+                      {file.type.startsWith('image/') ? (
+                        <img src={file.data} alt={file.name} style={{width:'100%', height:120, objectFit:'cover'}} className="rounded-md mb-2" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 mx-auto mb-2 flex items-center justify-center">{file.type.split('/')[0]||'FILE'}</div>
+                      )}
+                      <div className="font-medium truncate">{file.name}</div>
+                      <div className="text-xs text-gray-400">{formatFileSize(file.size)}</div>
+                    </div>
+                    <div style={{position:'absolute',right:8,top:8,display:'flex',gap:6}}>
+                      <a href={file.data} download={file.name} className="px-2 py-1 bg-cyan-500 rounded">Download</a>
+                      <button onClick={()=>deleteFile(file.id)} className="px-2 py-1 bg-red-500 rounded">Delete</button>
+                    </div>
+                  </div>
+                ))}</div></div>)}
+              </>
+            )}
+          </div>
+
+          {showNewFolderModal && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-40">
+              <div className="glass rounded-2xl p-6 max-w-md w-full">
+                <div className="flex items-center justify-between mb-4"><h3 className="text-xl font-bold">Create Folder</h3><button onClick={()=>setShowNewFolderModal(false)}>✖️</button></div>
+                <input autoFocus value={newFolderName} onChange={(e)=>setNewFolderName(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&createFolder()} placeholder="Folder name" className="w-full px-3 py-2 bg-white/5 rounded mb-4" />
+                <div className="flex gap-3"><button onClick={()=>setShowNewFolderModal(false)} className="flex-1 px-3 py-2 bg-white/5 rounded">Cancel</button><button onClick={createFolder} className="flex-1 px-3 py-2 bg-purple-600 rounded">Create</button></div>
+              </div>
+            </div>
+          )}
+        </div>
       );
     }
 
-    if (filterType !== 'all') {
-      currentFiles = currentFiles.filter(f => f.type.startsWith(filterType + '/'));
-    }
-
-    currentFiles.sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'date') return new Date(b.uploadDate) - new Date(a.uploadDate);
-      if (sortBy === 'size') return b.size - a.size;
-      return 0;
-    });
-
-    return { currentFolders, currentFiles };
-  };
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const { currentFolders, currentFiles } = getFilteredAndSortedItems();
-  const path = getCurrentFolderPath();
-  const totalFiles = files.length;
-  const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-  const recentFiles = files.slice(-5).reverse();
-
-  return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Animated Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
-      </div>
-
-      <style>{`
-        @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-        .glass {
-          background: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .glow {
-          box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
-        }
-      `}</style>
-
-      <div className="relative z-10 max-w-7xl mx-auto p-6">
-        {/* Header */}
-        <div className="glass rounded-3xl p-8 mb-6 glow">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-gradient-to-r from-purple-500 to-cyan-500 p-3 rounded-2xl">
-                  <Zap className="w-8 h-8" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                    NEXUS DRIVE
-                  </h1>
-                  <p className="text-gray-400 text-sm flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" />
-                    {totalFiles} files • {formatFileSize(totalSize)}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowNewFolderModal(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-3 rounded-xl hover:from-purple-500 hover:to-purple-600 transition-all transform hover:scale-105 shadow-lg"
-              >
-                <FolderPlus className="w-5 h-5" />
-                <span className="font-semibold">New Folder</span>
-              </button>
-              <label className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 px-5 py-3 rounded-xl hover:from-cyan-500 hover:to-blue-500 transition-all transform hover:scale-105 shadow-lg cursor-pointer">
-                <Upload className="w-5 h-5" />
-                <span className="font-semibold">Upload</span>
-                <input
-                  type="file"
-                  multiple
-                  onChange={(e) => handleFileUpload(e.target.files)}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* Upload Progress */}
-          {uploadProgress > 0 && (
-            <div className="mb-4">
-              <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-300"
-                  style={{ width: uploadProgress + '%' }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 mb-6 text-gray-400">
-            {path.map((folder, index) => (
-              <React.Fragment key={folder.id}>
-                <button
-                  onClick={() => setCurrentFolder(folder.id)}
-                  className="hover:text-cyan-400 transition font-medium"
-                >
-                  {folder.name}
-                </button>
-                {index < path.length - 1 && <span className="text-gray-600">/</span>}
-              </React.Fragment>
-            ))}
-          </div>
-
-          {/* Search and Controls */}
-          <div className="flex flex-wrap gap-3">
-            <div className="flex-1 min-w-[250px] relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-500 text-white"
-              />
-            </div>
-            
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 text-white"
-            >
-              <option value="all">All Types</option>
-              <option value="image">Images</option>
-              <option value="video">Videos</option>
-              <option value="audio">Audio</option>
-              <option value="application">Documents</option>
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 text-white"
-            >
-              <option value="name">Name</option>
-              <option value="date">Date</option>
-              <option value="size">Size</option>
-            </select>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-3 rounded-xl transition ${viewMode === 'grid' ? 'bg-gradient-to-r from-purple-600 to-cyan-600 shadow-lg' : 'bg-white/5 hover:bg-white/10'}`}
-              >
-                <Grid className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-3 rounded-xl transition ${viewMode === 'list' ? 'bg-gradient-to-r from-purple-600 to-cyan-600 shadow-lg' : 'bg-white/5 hover:bg-white/10'}`}
-              >
-                <List className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Drag & Drop Zone */}
-        <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          className={`glass rounded-3xl p-8 transition-all ${isDragging ? 'border-2 border-cyan-500 bg-cyan-500/10' : ''}`}
-        >
-          {isDragging && (
-            <div className="text-center py-12 mb-8 border-2 border-dashed border-cyan-500 rounded-2xl">
-              <Cloud className="w-16 h-16 mx-auto mb-4 text-cyan-500" />
-              <p className="text-xl font-bold text-cyan-400">Drop files here</p>
-            </div>
-          )}
-
-          {currentFolders.length === 0 && currentFiles.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="bg-gradient-to-r from-purple-500 to-cyan-500 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Folder className="w-12 h-12" />
-              </div>
-              <p className="text-2xl font-bold mb-2">No files yet</p>
-              <p className="text-gray-400">Upload files or create a folder to get started</p>
-            </div>
-          ) : (
-            <>
-              {/* Folders */}
-              {currentFolders.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider flex items-center gap-2">
-                    <Folder className="w-4 h-4" />
-                    Folders
-                  </h3>
-                  <div className={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4' : 'space-y-2'}>
-                    {currentFolders.map(folder => (
-                      <div
-                        key={folder.id}
-                        className="glass rounded-xl p-4 hover:bg-white/10 transition-all cursor-pointer group relative transform hover:scale-105"
-                        onDoubleClick={() => setCurrentFolder(folder.id)}
-                      >
-                        <div className="text-center">
-                          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                            <Folder className="w-8 h-8" />
-                          </div>
-                          <p className="font-semibold truncate">{folder.name}</p>
-                        </div>
-                        {folder.id !== 'root' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteFolder(folder.id);
-                            }}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition bg-red-500 hover:bg-red-600 p-2 rounded-lg"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Files */}
-              {currentFiles.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider flex items-center gap-2">
-                    <File className="w-4 h-4" />
-                    Files
-                  </h3>
-                  <div className={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4' : 'space-y-2'}>
-                    {currentFiles.map(file => (
-                      <div
-                        key={file.id}
-                        className="glass rounded-xl p-4 hover:bg-white/10 transition-all group relative transform hover:scale-105"
-                      >
-                        <div className="text-center">
-                          {file.type.startsWith('image/') ? (
-                            <img src={file.data} alt={file.name} className="w-full h-32 object-cover rounded-xl mb-3" />
-                          ) : (
-                            <div className="bg-gradient-to-r from-purple-500 to-pink-500 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                              {getFileIcon(file.type)}
-                            </div>
-                          )}
-                          <p className="font-medium truncate text-sm mb-1">{file.name}</p>
-                          <p className="text-xs text-gray-400">{formatFileSize(file.size)}</p>
-                        </div>
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1">
-                          <a
-                            href={file.data}
-                            download={file.name}
-                            className="bg-cyan-500 hover:bg-cyan-600 p-2 rounded-lg"
-                          >
-                            <Download className="w-4 h-4" />
-                          </a>
-                          <button
-                            onClick={() => deleteFile(file.id)}
-                            className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* New Folder Modal */}
-      {showNewFolderModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass rounded-3xl p-8 max-w-md w-full glow">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold">Create Folder</h3>
-              <button onClick={() => setShowNewFolderModal(false)} className="text-gray-400 hover:text-white transition">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <input
-              type="text"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Folder name"
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 mb-6 text-white placeholder-gray-500"
-              onKeyPress={(e) => e.key === 'Enter' && createFolder()}
-              autoFocus
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowNewFolderModal(false)}
-                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createFolder}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 rounded-xl transition font-semibold"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
