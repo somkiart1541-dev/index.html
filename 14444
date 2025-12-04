@@ -1,0 +1,330 @@
+import React, { useState, useRef } from "react";
+import {
+  Camera,
+  Upload,
+  Search,
+  CheckCircle,
+  XCircle,
+  Info,
+  Loader2,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
+
+export default function ProductVerifier() {
+  const [image, setImage] = useState(null);
+  const [productName, setProductName] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [currentStep, setCurrentStep] = useState("");
+  const [result, setResult] = useState(null);
+  const [imageData, setImageData] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const cameraRef = useRef(null);
+
+  /** -------------------------------
+   *   MAIN – ตรวจสอบสินค้า
+   --------------------------------*/
+  const analyzeProduct = async () => {
+    if (!image || !productName.trim()) {
+      alert("⚠️ กรุณาเลือกรูปและใส่ชื่อสินค้า");
+      return;
+    }
+
+    setAnalyzing(true);
+    setCurrentStep("กำลังวิเคราะห์รูปภาพ...");
+    setResult(null);
+
+    try {
+      const img = await analyzeImage(image);
+      setImageData(img);
+      await sleep(600);
+
+      setCurrentStep("กำลังค้นหาข้อมูลสินค้า...");
+      const googleData = await fetchGoogle(productName);
+      await sleep(600);
+
+      setCurrentStep("กำลังเปรียบเทียบข้อมูล...");
+      const verification = verify(img, productName, googleData);
+
+      setResult(verification);
+    } catch (err) {
+      console.log(err);
+      setResult({
+        isMatch: false,
+        confidence: 0,
+        reason: "เกิดข้อผิดพลาด",
+        details: "ไม่สามารถตรวจสอบได้",
+      });
+    } finally {
+      setAnalyzing(false);
+      setCurrentStep("");
+    }
+  };
+
+  /** -------------------------------
+   *   MOCK – วิเคราะห์รูป (จำลอง)
+   --------------------------------*/
+  const analyzeImage = async () => {
+    // **ตรงนี้คุณสามารถนำ API จริงมาใส่ได้**
+    return {
+      type: "ลำโพง",
+      brand: "TOA",
+      model: "B650",
+      color: "ดำ",
+      confidence: 80,
+    };
+  };
+
+  /** -------------------------------
+   *   MOCK – ค้นหา Google (จำลอง)
+   --------------------------------*/
+  const fetchGoogle = async () => {
+    return "ลำโพง TOA รุ่น B650 เป็นลำโพงติดผนัง ขนาด 6.5 นิ้ว";
+  };
+
+  /** -------------------------------
+   *   ตรวจสอบว่าตรงกันไหม
+   --------------------------------*/
+  const verify = (img, name, search) => {
+    const lower = name.toLowerCase();
+
+    let score = 0;
+    let total = 3;
+
+    if (lower.includes(img.brand.toLowerCase())) score++;
+    if (lower.includes(img.model.toLowerCase())) score++;
+    if (lower.includes(img.type)) score++;
+
+    const confidence = Math.round((score / total) * 100);
+
+    return {
+      isMatch: confidence >= 60,
+      confidence,
+      reason: confidence >= 60 ? "ชื่อสินค้าและรูปภาพสอดคล้องกัน" : "ข้อมูลไม่ค่อยตรงกัน",
+      details: search,
+      correctName: confidence >= 60 ? null : `${img.type} ${img.brand} ${img.model}`,
+    };
+  };
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /** -------------------------------
+   *   Handlers
+   --------------------------------*/
+  const handleUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setImage(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const reset = () => {
+    setImage(null);
+    setProductName("");
+    setResult(null);
+    setImageData(null);
+  };
+
+  return (
+    <div className="min-h-screen p-4 bg-gradient-to-br from-blue-50 to-purple-100">
+      <div className="max-w-4xl mx-auto space-y-6">
+
+        {/* HEADER */}
+        <div className="bg-white shadow-xl rounded-2xl p-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="bg-indigo-600 text-white p-3 rounded-xl">
+              <Search size={30} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">ตรวจสอบสินค้า AI</h1>
+              <p className="text-gray-600">ตรวจสอบว่าชื่อสินค้าตรงกับรูปหรือไม่</p>
+            </div>
+          </div>
+
+          {(image || productName) && (
+            <button
+              onClick={reset}
+              className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <RefreshCw size={18} /> เริ่มใหม่
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* LEFT - Upload */}
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+              <label className="font-bold text-lg mb-4 block">1) เลือกรูปสินค้า</label>
+
+              {!image ? (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => fileInputRef.current.click()}
+                    className="w-full bg-indigo-600 text-white py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-indigo-700"
+                  >
+                    <Upload /> อัปโหลดภาพ
+                  </button>
+
+                  <button
+                    onClick={() => cameraRef.current.click()}
+                    className="w-full bg-green-600 text-white py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-green-700"
+                  >
+                    <Camera /> ถ่ายรูป
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <img
+                    src={image}
+                    className="w-full h-60 object-contain bg-gray-100 rounded-xl"
+                  />
+                  <button
+                    className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl"
+                    onClick={() => setImage(null)}
+                  >
+                    เปลี่ยนรูป
+                  </button>
+                </div>
+              )}
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleUpload}
+              />
+              <input
+                type="file"
+                ref={cameraRef}
+                className="hidden"
+                accept="image/*"
+                capture="environment"
+                onChange={handleUpload}
+              />
+            </div>
+
+            {/* Product name */}
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+              <label className="font-bold text-lg mb-2 block">2) ชื่อสินค้า</label>
+              <input
+                type="text"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder="เช่น TOA B650, iPhone 15 Pro Max"
+                className="w-full border p-3 rounded-xl"
+              />
+            </div>
+
+            <button
+              onClick={analyzeProduct}
+              disabled={!image || !productName.trim() || analyzing}
+              className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-lg flex items-center justify-center gap-3 disabled:opacity-50"
+            >
+              {analyzing ? <Loader2 className="animate-spin" /> : <Search />}
+              {analyzing ? currentStep || "กำลังตรวจสอบ..." : "เริ่มตรวจสอบ"}
+            </button>
+          </div>
+
+          {/* RIGHT - Results */}
+          <div className="space-y-6">
+            {imageData && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="flex items-center gap-2 font-bold text-lg">
+                  <Info className="text-blue-600" /> ข้อมูลจากภาพ
+                </h3>
+
+                <div className="mt-4 space-y-2">
+                  <Line label="ประเภทสินค้า" value={imageData.type} />
+                  <Line label="ยี่ห้อ" value={imageData.brand} />
+                  <Line label="รุ่น" value={imageData.model} />
+                  <Line label="สี" value={imageData.color} />
+                </div>
+              </div>
+            )}
+
+            {result && (
+              <div
+                className={`rounded-xl shadow-xl p-6 ${
+                  result.isMatch
+                    ? "bg-green-50 border-green-300 border"
+                    : "bg-red-50 border-red-300 border"
+                }`}
+              >
+                <div className="flex items-start gap-4 mb-4">
+                  <div
+                    className={`p-3 rounded-full ${
+                      result.isMatch ? "bg-green-600" : "bg-red-600"
+                    }`}
+                  >
+                    {result.isMatch ? (
+                      <CheckCircle className="text-white" />
+                    ) : (
+                      <XCircle className="text-white" />
+                    )}
+                  </div>
+
+                  <div>
+                    <h3
+                      className={`text-2xl font-bold ${
+                        result.isMatch ? "text-green-700" : "text-red-700"
+                      }`}
+                    >
+                      {result.isMatch ? "✓ ตรงกัน!" : "✗ ไม่ตรงกัน"}
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      ตรวจสอบเมื่อ {new Date().toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Confidence bar */}
+                <div className="mb-4">
+                  <p className="font-semibold">ระดับความมั่นใจ: {result.confidence}%</p>
+                  <div className="w-full bg-gray-200 rounded-full h-4 mt-2">
+                    <div
+                      className="h-4 rounded-full bg-green-500"
+                      style={{ width: `${result.confidence}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg mb-2">
+                  <p className="font-semibold mb-1">📌 เหตุผล</p>
+                  <p className="text-sm">{result.reason}</p>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg mb-2">
+                  <p className="font-semibold mb-1">📝 รายละเอียด</p>
+                  <p className="text-sm">{result.details}</p>
+                </div>
+
+                {!result.isMatch && result.correctName && (
+                  <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg">
+                    <p className="font-semibold">ชื่อที่ถูกต้องอาจเป็น:</p>
+                    <p className="font-bold text-blue-700">{result.correctName}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Component for displaying info lines */
+function Line({ label, value }) {
+  return (
+    <div className="flex justify-between border-b pb-2">
+      <span className="text-gray-600">{label}</span>
+      <span className="font-semibold">{value}</span>
+    </div>
+  );
+}
